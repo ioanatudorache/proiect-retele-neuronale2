@@ -51,14 +51,14 @@ class ConstellationAugmenter:
         height, width = image.shape[:2]
         new_height, new_width = int(height * zoom_factor), int(width * zoom_factor)
 
-        # redimensionează
+        #redimensioneaza
         resized = cv2.resize(image, (new_width, new_height))
 
-        if zoom_factor > 1:  # zoom in - crop center
+        if zoom_factor > 1:  #zoom in - crop center
             start_y = (new_height - height) // 2
             start_x = (new_width - width) // 2
             return resized[start_y:start_y + height, start_x:start_x + width]
-        else:  # zoom out - add padding
+        else:  #zoom out - add padding
             result = np.zeros((height, width, 3), dtype=np.uint8)
             start_y = (height - new_height) // 2
             start_x = (width - new_width) // 2
@@ -140,7 +140,7 @@ class ConstellationAugmenter:
         return params
 
     def process_constellation(self, image_path, constellation_name):
-        """Procesează o singură imagine de constelație și generează augmentări"""
+        #procesează o singura imagine de constelatie si genereaza augmentari
         print(f"\nProcesare: {constellation_name}")
 
         # citește imaginea
@@ -175,8 +175,7 @@ class ConstellationAugmenter:
         print(f"✓ Finalizat {constellation_name}: {self.target_count} imagini totale")
 
     def process_all(self):
-        """Procesează toate imaginile din directorul de input"""
-        # Găsește toate imaginile jpg
+        # găsește toate imaginile jpg
         image_files = list(self.input_dir.glob("*.jpg"))
 
         if len(image_files) == 0:
@@ -188,9 +187,9 @@ class ConstellationAugmenter:
         print(f"Total imagini ce vor fi generate: {len(image_files) * self.target_count}")
         print("=" * 60)
 
-        # Procesează fiecare imagine
+        # procesează fiecare imagine
         for image_path in image_files:
-            constellation_name = image_path.stem  # Numele fișierului fără extensie
+            constellation_name = image_path.stem  # numele fișierului fără extensie
             self.process_constellation(image_path, constellation_name)
 
         print("\n" + "=" * 60)
