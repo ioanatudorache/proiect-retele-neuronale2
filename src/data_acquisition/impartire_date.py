@@ -2,7 +2,7 @@ import os
 import shutil
 import random
 
-source_root = "Documents/GitHub/proiect-retele-neuronale/data/processed/output"
+source_root = "/Users/ioanatudorache/Documents/GitHub/proiect-retele-neuronale/data/processed/output"
 train_root = "/Users/ioanatudorache/Documents/GitHub/proiect-retele-neuronale/data/processed/train"
 test_root = "/Users/ioanatudorache/Documents/GitHub/proiect-retele-neuronale/data/processed/test"
 val_root = "/Users/ioanatudorache/Documents/GitHub/proiect-retele-neuronale/data/processed/validation"
@@ -13,9 +13,15 @@ for cls in os.listdir(source_root):
     if not os.path.isdir(class_path):
         continue
 
-    train_dir = os.path.join(train_root, cls)
-    test_dir = os.path.join(test_root, cls)
-    val_dir = os.path.join(val_root, cls)
+    clean_cls = cls.replace("-2", "")
+
+    train_dir = os.path.join(train_root, clean_cls)
+    test_dir = os.path.join(test_root, clean_cls)
+    val_dir = os.path.join(val_root, clean_cls)
+
+    os.makedirs(train_dir, exist_ok=True)
+    os.makedirs(test_dir, exist_ok=True)
+    os.makedirs(val_dir, exist_ok=True)
 
     images = os.listdir(class_path)
     random.shuffle(images)
@@ -39,4 +45,3 @@ for cls in os.listdir(source_root):
     move_images(train_images, train_dir)
     move_images(test_images, test_dir)
     move_images(val_images, val_dir)
-
