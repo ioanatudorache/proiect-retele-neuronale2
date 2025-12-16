@@ -1,266 +1,249 @@
 """
-script de generare automata imagini constelatii folosind Stellarium
-genereaza 150 imagini per constelație cu parametri variaţi
-
-am instalalat Stellarium de aici: https://stellarium.org/ro/
-
-am configurat Stellarium manual inainte:
-1. deschide Stellarium
-2. F2 → Configuration → Tools → Enable RemoteControl plugin
-3. restart Stellarium
-4. Stellarium va rula pe http://localhost:8090
+SCRIPT STABIL - Generare automata imagini constelatii (JPEG, 500x500)
+Folosește metoda de mutare a fișierelor generice 'stellarium-xxxx.jpeg'
+pentru a evita eroarea HTTP 400 la setarea căii.
 """
 
 import requests
 import time
 import os
-from datetime import datetime, timedelta
+import sys
+import warnings
 import json
-from PIL import Image
-import io
+import shutil # Pentru mutarea fișierelor
+from glob import glob # Pentru căutarea fișierelor
+import requests.exceptions
+from urllib3.exceptions import NotOpenSSLWarning
+
+# Suprimă avertizarea NotOpenSSLWarning/LibreSSL
+warnings.filterwarnings("ignore", category=NotOpenSSLWarning)
 
 
 class StellariumController:
     def __init__(self, host="localhost", port=8090):
         self.base_url = f"http://{host}:{port}/api"
-        self.screenshot_dir = "data/stellarium_generated"
-        os.makedirs(self.screenshot_dir, exist_ok=True)
+
+        self.project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        self.target_dir_root = os.path.join(self.project_root, "data", "generated")
+        os.makedirs(self.target_dir_root, exist_ok=True)
+
+        # Calea unde Stellarium SALVEAZĂ (SETATĂ MANUAL în F2, ex: /tmp)
+        self.stellarium_save_dir = "/tmp"
+
+        print(f"   Directorul FINAL al Proiectului (JPEG & JSON): {self.target_dir_root}")
+        print(f"   Directorul de Căutare (Setare Stellarium): {self.stellarium_save_dir}")
+
 
     def check_connection(self):
         """verifică dacă Stellarium este pornit si RemoteControl activ"""
+        # (Funcția de verificare conexiune rămâne la fel)
         try:
-            response = requests.get(f"{self.base_url}/main/status", timeout=2)
+            print(f"\n   Încercare conexiune la: {self.base_url}/main/status (timeout 5s)")
+            response = requests.get(f"{self.base_url}/main/status", timeout=5)
+
             if response.status_code == 200:
                 print(" Conectat la Stellarium!")
                 return True
-        except:
-            print("   Stellarium nu raspunde")
-            print("   Pași:")
-            print("   1. deschide Stellarium")
-            print("   2. F2 → Configuration → Plugins → RemoteControl → Enable")
-            print("   3. Restart Stellarium")
+            else:
+                print(f"   Stellarium a răspuns, dar cu codul HTTP: {response.status_code}")
+                return False
+
+        except requests.exceptions.ConnectionError:
+            print("   Stellarium nu răspunde (Eroare de Conexiune).")
             return False
 
+        except Exception as e:
+            print(f"   Eroare neașteptată la conectare: {e}")
+            return False
+
+    # --- Funcții de Vedere (la fel ca înainte) ---
     def set_location(self, lat, lon, altitude=100, name="Custom"):
-        """seteaza locatia geografica"""
-        data = {
-            "latitude": lat,
-            "longitude": lon,
-            "altitude": altitude,
-            "name": name
-        }
+        data = {"latitude": lat, "longitude": lon, "altitude": altitude, "name": name}
         response = requests.post(f"{self.base_url}/location/setlocationfields", json=data)
         return response.status_code == 200
 
     def set_time(self, year, month, day, hour, minute=0):
-        """seteaza data si ora"""
-        # format: "2024-12-06T22:30:00"
         time_str = f"{year:04d}-{month:02d}-{day:02d}T{hour:02d}:{minute:02d}:00"
-        response = requests.post(
-            f"{self.base_url}/main/time",
-            data={"time": time_str, "timerate": 0}
-        )
+        response = requests.post(f"{self.base_url}/main/time", data={"time": time_str, "timerate": 0})
         return response.status_code == 200
 
     def find_constellation(self, constellation_name):
-        """cauta si centreaza pe constelatie"""
-        # nume acceptate: "ursa minor", "ursa major", "pegasus", "andromeda"
-        response = requests.post(
-            f"{self.base_url}/main/focus",
-            data={"target": constellation_name}
-        )
-        time.sleep(0.5)  # așteapta sa se centreze
+        response = requests.post(f"{self.base_url}/main/focus", data={"target": constellation_name})
+        time.sleep(0.5)
         return response.status_code == 200
 
     def set_fov(self, fov_degrees):
-        """seteaza campul vizual"""
-        response = requests.post(
-            f"{self.base_url}/main/fov",
-            data={"fov": fov_degrees}
-        )
+        response = requests.post(f"{self.base_url}/main/fov", data={"fov": fov_degrees})
         return response.status_code == 200
 
-    def set_view_direction(self, azimuth, altitude):
-        """seteaza directia de vizualizare
-        azimuth: 0-360° (0=nord, 90=est, 180=sud, 270=vest)
-        altitude: 0-90° (0=orizont, 90=zenit)
-        """
-        response = requests.post(
-            f"{self.base_url}/main/view",
-            json={"azimuth": azimuth, "altitude": altitude}
-        )
-        return response.status_code == 200
-
-    def toggle_constellation_lines(self, show=True):
-        """activeaza/dezactiveaza liniile constelatiilor"""
-        action = "on" if show else "off"
+    def toggle_clean_view(self):
+        """Dezactivează toate elementele de interfață."""
         requests.post(f"{self.base_url}/stelaction/do", data={"id": f"actionShow_Constellation_Lines"})
-
-    def toggle_constellation_labels(self, show=True):
-        """activeaza/dezactiveaza etichetele constelatiilor"""
-        action = "on" if show else "off"
         requests.post(f"{self.base_url}/stelaction/do", data={"id": f"actionShow_Constellation_Labels"})
-
-    def toggle_atmosphere(self, show=False):
-        """activeaza/dezactiveaza atmosfera (pentru cer mai negru)"""
         requests.post(f"{self.base_url}/stelaction/do", data={"id": "actionShow_Atmosphere"})
+        requests.post(f"{self.base_url}/stelaction/do", data={"id": f"actionShow_Star_Names"})
+        requests.post(f"{self.base_url}/stelaction/do", data={"id": f"actionShow_Planet_Labels"})
+        requests.post(f"{self.base_url}/stelaction/do", data={"id": f"actionShow_Ecliptic_J2000_Grid"})
 
-    def take_screenshot(self, filename):
-        """face screenshot si salveaza"""
-        # Stellarium salveaza automat în folder-ul de screenshots
+    # --- Funcții de Salvare ---
+
+    def take_screenshot(self):
+        """Trimite comanda de screenshot simplă."""
         requests.post(f"{self.base_url}/main/screenshot")
-        time.sleep(0.5)
-        print(f"   Screenshot salvat (Stellarium folder)")
         return True
 
+    def move_last_screenshot(self, target_path, timeout=5):
+        """Caută cel mai nou fișier 'stellarium-xxxx.jpeg' în directorul temporar și îl mută/redenumește."""
+
+        start_time = time.time()
+        # Căutăm fișierul generic pe care Stellarium îl generează
+        search_path = os.path.join(self.stellarium_save_dir, "stellarium-*.jpeg")
+
+        while time.time() - start_time < timeout:
+            # Găsește toate fișierele .jpeg care încep cu 'stellarium-'
+            list_of_files = glob(search_path)
+
+            if list_of_files:
+                # Găsește cel mai nou fișier pe baza timpului de modificare
+                latest_file = max(list_of_files, key=os.path.getmtime)
+
+                # Mută fișierul temporar în calea finală
+                try:
+                    shutil.move(latest_file, target_path)
+                    return True
+                except Exception as e:
+                    print(f"   ✗ Eroare la mutarea fișierului {latest_file}: {e}")
+                    return False
+
+            time.sleep(0.1)
+
+        print(f"   ✗ Stellarium nu a salvat imaginea (sau fișierul nu a apărut în {self.stellarium_save_dir})")
+        return False
+
+
     def save_view_info(self, filename, metadata):
-        """salveaza metadata despre imagine"""
-        json_file = filename.replace('.png', '.json')
+        """salveaza metadata (.json) alături de imaginea (.jpeg)."""
+        json_file = filename.replace('.jpeg', '.json')
         with open(json_file, 'w') as f:
             json.dump(metadata, f, indent=2)
 
 
-def generate_constellation_dataset(constellation_name, num_images=100):
-    """
-    generează dataset complet pentru o constelație
+def generate_constellation_dataset(constellation_name, num_images=100, controller=None):
+    """generează dataset complet pentru o constelație"""
 
-    Args:
-        constellation_name: "ursa minor", "ursa major", "pegasus", "andromeda"
-        num_images: numar de imagini de generat
-    """
-
-    controller = StellariumController()
-
-    # verifica conexiunea
     if not controller.check_connection():
+        print(f"\nGenerare anulată pentru {constellation_name} din cauza eșecului de conectare.")
         return
 
-    print(f"\n Generam {num_images} imagini pentru {constellation_name}...")
+    print(f"\n Generăm {num_images} imagini pentru {constellation_name}...")
 
-    # configurare initiala
-    controller.toggle_constellation_lines(False)  # fara linii
-    controller.toggle_constellation_labels(False)  # fara etichete
-    controller.toggle_atmosphere(False)  # fara atmosfera
+    controller.toggle_clean_view()
 
-    # parametri de variație
+    # parametri de variație (la fel ca înainte)
     locations = [
-        (44.4268, 26.1025, "Bucuresti"),
-        (45.6580, 25.6012, "Brasov"),
-        (47.1585, 27.6014, "Iasi"),
-        (46.7712, 23.6236, "Cluj-Napoca"),
-        (45.9432, 24.9668, "Sibiu"),
-        (44.1598, 28.6348, "Constanta"),
+        (44.4268, 26.1025, "Bucuresti"), (45.6580, 25.6012, "Brasov"), (47.1585, 27.6014, "Iasi"),
+        (46.7712, 23.6236, "Cluj-Napoca"), (45.9432, 24.9668, "Sibiu"), (44.1598, 28.6348, "Constanta"),
     ]
+    months = range(1, 13)
+    hours = [20, 21, 22, 23, 0, 1, 2, 3, 4]
+    fovs = [30, 40, 50, 60, 70]
 
-    months = range(1, 13)  # ianuarie - decembrie
-    hours = [20, 21, 22, 23, 0, 1, 2, 3, 4]  # 20:00 - 04:00
-    fovs = [30, 40, 50, 60, 70]  # field of view in grade
-
-    output_dir = f"data/stellarium_generated/{constellation_name.lower().replace(' ', '_')}"
+    constellation_folder = constellation_name.lower().replace(' ', '_')
+    output_dir = os.path.join(controller.target_dir_root, constellation_folder)
     os.makedirs(output_dir, exist_ok=True)
 
     img_count = 0
 
-    # genereaza imagini cu combinatii diferite
     for loc_idx, (lat, lon, loc_name) in enumerate(locations):
-        if img_count >= num_images:
-            break
+        if img_count >= num_images: break
 
         controller.set_location(lat, lon, name=loc_name)
-        print(f"\ Locatie: {loc_name} ({lat}°, {lon}°)")
+        print(f"\n Locație: {loc_name} ({lat}°, {lon}°)")
 
         for month in months:
-            if img_count >= num_images:
-                break
-
+            if img_count >= num_images: break
             for hour in hours:
-                if img_count >= num_images:
-                    break
+                if img_count >= num_images: break
 
-                # seteaza timpul
                 controller.set_time(2024, month, 15, hour)
-
-                # cauta constelatia
                 if controller.find_constellation(constellation_name):
-
-                    # variaza FOV-ul
                     for fov in fovs:
-                        if img_count >= num_images:
-                            break
+                        if img_count >= num_images: break
 
                         controller.set_fov(fov)
-                        time.sleep(0.3)  # asteapta render
+                        time.sleep(0.3)
 
-                        # salveaza screenshot
-                        filename = f"{constellation_name.lower().replace(' ', '_')}_{img_count:04d}.png"
-                        filepath = os.path.join(output_dir, filename)
+                        filename = f"{constellation_folder}_{img_count:04d}.jpeg"
+                        target_filepath = os.path.join(output_dir, filename)
 
-                        metadata = {
-                            "constellation": constellation_name,
-                            "location": loc_name,
-                            "latitude": lat,
-                            "longitude": lon,
-                            "date": f"2024-{month:02d}-15",
-                            "hour": hour,
-                            "fov": fov,
-                            "image_id": img_count
-                        }
+                        # 1. Trimite comanda de screenshot
+                        controller.take_screenshot()
 
-                        controller.take_screenshot(filepath)
-                        controller.save_view_info(filepath, metadata)
+                        # 2. Caută, mută și redenumește fișierul generic 'stellarium-xxxx.jpeg'
+                        if controller.move_last_screenshot(target_filepath):
+                            # 3. Salvează metadatele
+                            metadata = {
+                                "constellation": constellation_name, "location": loc_name, "latitude": lat,
+                                "longitude": lon, "date": f"2024-{month:02d}-15", "hour": hour,
+                                "fov": fov, "image_id": img_count, "image_filename": filename
+                            }
+                            controller.save_view_info(target_filepath, metadata)
 
-                        img_count += 1
-                        print(f" {img_count}/{num_images} - {filename}")
+                            img_count += 1
+                            print(f" {img_count}/{num_images} - {filename} salvat.")
 
-                        time.sleep(0.2)  # pauza mica intre screenshots
+                        time.sleep(0.2)
 
-    print(f"\n Am generat {img_count} imagini pentru {constellation_name}!")
-    print(f"📁 Salvate in: {output_dir}")
+    print(f"\n Am generat {img_count} seturi (.json și .jpeg) pentru {constellation_name}!")
     return output_dir
 
 
 def generate_full_dataset():
     """genereaza dataset complet pentru toate cele 4 constelatii"""
 
-    constellations = {
-        "Ursa Minor": 150,  # 150 imagini
-        "Ursa Major": 150,  # 150 imagini
-        "Pegasus": 150,  # 150 imagini
-        "Andromeda": 150  # 150 imagini
-    }
+    print("\n>>> DATASET GENERATOR INCEPE EXECUTIA...", file=sys.stderr)
+
+    controller = StellariumController()
+
+    print("\n--- VERIFICĂRI ESSENȚIALE ---")
+    print("1. Stellarium (F2) 'Screenshot Directory' este setat la calea simplă: ** /tmp/ **?")
+    print("2. 'File format' este **.jpeg** și 'Custom size' este **500 x 500**?")
+    print(f"3. Directorul de salvare este: {controller.target_dir_root}")
+    print("----------------------------")
+
+    constellations = {"Ursa Minor": 150, "Ursa Major": 150, "Pegasus": 150, "Andromeda": 150 }
 
     print("=" * 60)
     print(" generator automat dataset constelatii")
     print("=" * 60)
-    print("\n plan:")
-    for const, num in constellations.items():
-        print(f"   • {const}: {num} imagini")
     print(f"\n total: {sum(constellations.values())} imagini")
-    print("  timp estimat: ~15-30 minute")
-    print("\n asigura-te ca Stellarium este deschis si RemoteControl activ!")
-    input("\napasa enter pentru a incepe...")
+    input("\napasa enter pentru a începe...")
 
     start_time = time.time()
 
     for constellation, num_images in constellations.items():
         print("\n" + "=" * 60)
-        output_dir = generate_constellation_dataset(constellation, num_images)
+        output_dir = generate_constellation_dataset(constellation, num_images, controller=controller)
         print(f" {constellation} - complet")
         print("=" * 60)
-        time.sleep(2)  # pauza intre constelatii
+        time.sleep(2)
 
     elapsed = time.time() - start_time
     print(f"\n DATASET COMPLET GENERAT!")
     print(f"️  timp total: {elapsed / 60:.1f} minute")
-    print(f" locație: data/stellarium_generated/")
+    print(f" locație fișiere: {controller.target_dir_root}")
 
-    # statistici
+    # statistici finale
     print("\n statistici:")
-    total_images = 0
+    total_files = 0
     for const in constellations.keys():
-        folder = f"data/stellarium_generated/{const.lower().replace(' ', '_')}"
+        folder = os.path.join(controller.target_dir_root, const.lower().replace(' ', '_'))
         if os.path.exists(folder):
-            count = len([f for f in os.listdir(folder) if f.endswith('.png')])
-            total_images += count
-            print(f"   • {const}: {count} imagini")
-    print(f"\n   total: {total_images} imagini ")
+            count_json = len([f for f in os.listdir(folder) if f.endswith('.json')])
+            count_jpeg = len([f for f in os.listdir(folder) if f.endswith('.jpeg')])
+            total_files += count_json
+            print(f"   • {const}: {count_json} fișiere .json și {count_jpeg} fișiere .jpeg")
+    print(f"\n   total: {total_files} seturi de fișiere (JSON și JPEG) ")
+
+if __name__ == "__main__":
+    generate_full_dataset()
