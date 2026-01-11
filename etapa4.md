@@ -104,12 +104,13 @@ Scrieți clar în acest README (Secțiunea 2):
 **Tipul contribuției:**
 [X] Date generate prin simulare fizică  
 [ ] Date achizitionate prin augmentarea a 4 imagini cu fiecare constelatie in parte  
-[ ] Etichetare/adnotare manuală  
+[X] Etichetare/adnotare manuală  
 [ ] Date sintetice prin metode avansate  
 
 **Descriere detaliată:**
-[Explicați în 2-3 paragrafe cum ați generat datele, ce metode ați folosit, 
-de ce sunt relevante pentru problema voastră, cu ce parametri ați rulat simularea/achiziția]
+Pentru constituirea setului de date necesar antrenarii modelului de recunoastere a constelatiilor, am ales o abordare hibrida care combina achizitia manuala de date sintetice cu tehnici de augmentare automata. In prima etapa, am utilizat software-ul de simulare astronomica Stellarium pentru a genera imagini de baza de inalta fidelitate, capturand screenshot-uri etichetate manual pentru cele patru constelatii. Aceasta metoda este necesara pentru relevanta proiectului, deoarece Stellarium ofera o reprezentare precisa a hartii stelare, permitandu-ne sa obtinem date "curate" (fara poluare luminoasa sau nori), care servesc drept referinta ideala pentru invatarea trsssturilor geometrice ale constelatiilor.
+
+Ulterior, am procesat 4 imagini gasite pe internet impreuna cu aceste imagini printr-un script Python dedicat pentru augmentarea datelor, generand variatii multiple pentru fiecare dintre cele patru clase. Simularea a fost rulata prin ajustarea unor parametri precum unghiul de rotatie (pentru a simula miscarea boltei ceresti), variatia intensitatii luminoase a stelelor si introducerea de zgomot digital. Aceasta diversificare este esentiala pentru problema noastra, deoarece antreneaza modelul sa recunoasca tiparele stelare in conditii variate, asigurand o generalizare optima si prevenind overfitting-ul pe un singur set fix de coordonate.
 
 **Locația codului:** `src/data_acquisition/generator_date`
 **Locația datelor:** `data/processed/test/`, `data/processed/train/`, `data/processed/validation` sau `data/raw/input/`
@@ -210,26 +211,30 @@ Chiar dacă aplicația voastră este o clasificare simplă (user upload → clas
 ```markdown
 ### Justificarea State Machine-ului ales:
 
-Am ales arhitectura [descrieți tipul: monitorizare continuă / clasificare la senzor / 
-predicție batch / control în timp real] pentru că proiectul nostru [explicați nevoia concretă 
-din tabelul Secțiunea 1].
+Am ales arhitectura de monitorizare continuă și clasificare bazată pe evenimente, deoarece proiectul nostru necesită 
+procesarea rapidă a fluxului vizual pentru a identifica tipare stelare în timp real sau din capturi succesive. 
+Această abordare permite sistemului să rămână activ și să reacționeze instantaneu la schimbarea cadrelor, 
+conform nevoii de a identifica constelațiile indiferent de rotația sau poziția lor pe boltă.
 
 Stările principale sunt:
-1. [STARE_1]: [ce se întâmplă aici - ex: "achiziție 1000 samples/sec de la accelerometru"]
-2. [STARE_2]: [ce se întâmplă aici - ex: "calcul FFT și extragere 50 features frecvență"]
-3. [STARE_3]: [ce se întâmplă aici - ex: "inferență RN cu latență < 50ms"]
+1. [ACHIZITIE_IMAGINE]: [capturarea datelor brute si conversia acestora intr-un format compatibil cu scriptul Python(array-uri)]
+2. [PREPROCESARE_SI_AUGMENTARE]: [aplicarea filtrelor de contrast, eliminarea zgomotului si redimensionarea imaginii la rezolutia ceruta de model]
+3. [INFERENTA_MODEL]: [rularea imaginii procesate prin reteaua neuronala pentru a calcula probabilitatile de apartenenta la una dintre cele 4 clase antrenate]
+4. [POSTPROCESARE_SI_AFISARE]: [interpretarea rezultatului (clasa cu cel mai mare scor) si suprapunerea etichetei corespunzatoare pe ecran pentru utilizator, oferind utilizatorului si un context educational]
 ...
 
 Tranzițiile critice sunt:
-- [STARE_A] → [STARE_B]: [când se întâmplă - ex: "când buffer-ul atinge 1024 samples"]
-- [STARE_X] → [ERROR]: [condiții - ex: "când senzorul nu răspunde > 100ms"]
+- [ACHIZITIE_IMAGINE] → [PREPROCESARE_SI_AUGMENTARE]: [se declanseaza automat in momentul in care un nou buffer de imagine este disponibil si complet incarcat in memorie]
+- [INFERENTA] → [ERROR]: [apare atunci cand imaginea furnizata nu contine suficiente puncte luminoase pentru a genera o predictie valida]
 
-Starea ERROR este esențială pentru că [explicați ce erori pot apărea în contextul 
-aplicației voastre industriale - ex: "senzorul se poate deconecta în mediul industrial 
-cu vibrații și temperatură variabilă, trebuie să gestionăm reconnect automat"].
+Starea ERROR este esentiala pentru ca în conditii reale de observare astronomica, factori precum acoperirea cu nori, 
+poluarea luminoasa excesiva sau miscarea brusca a dispozitivului pot compromite calitatea datelor. Sistemul trebuie 
+sa gestioneze aceste momente prin mesaje de eroare de tipul „Low visibility” sau „Insufficient features” si sa revina 
+automat la starea de achizitie fara a bloca executia.
 
-Bucla de feedback [dacă există] funcționează astfel: [ex: "rezultatul inferenței 
-actualizează parametrii controlerului PID pentru reglarea vitezei motorului"].
+Bucla de feedback functioneaza astfel: rezultatul inferentei poate fi utilizat pentru a ajusta automat parametrii de 
+expunere ai camerei sau pentru a rafina zona de interes (Region of Interest) pe baza ultimei pozitii cunoscute a 
+constelatiei identificate.
 ```
 
 ---
@@ -257,8 +262,8 @@ Toate cele 3 module trebuie să **pornească și să ruleze fără erori** la pr
 #### **Modul 2: Neural Network Module**
 
 **Funcționalități obligatorii:**
-- [ ] Arhitectură RN definită și compilată fără erori
-- [ ] Model poate fi salvat și reîncărcat
+- [X] Arhitectură RN definită și compilată fără erori
+- [X] Model poate fi salvat și reîncărcat
 - [ ] Include justificare pentru arhitectura aleasă (în docstring sau README)
 - [ ] **NU trebuie antrenat** cu performanță bună (weights pot fi random)
 
@@ -266,7 +271,7 @@ Toate cele 3 module trebuie să **pornească și să ruleze fără erori** la pr
 #### **Modul 3: Web Service / UI**
 
 **Funcționalități MINIME obligatorii:**
-- [ ] Propunere Interfață ce primește input de la user (formular, file upload, sau API endpoint)
+- [X] Propunere Interfață ce primește input de la user (formular, file upload, sau API endpoint)
 - [ ] Includeți un screenshot demonstrativ în `docs/screenshots/`
 
 **Ce NU e necesar în Etapa 4:**
@@ -340,7 +345,7 @@ proiect-rn-[nume-prenume]/
 - [ ] Fișiere în `data/generated/` conform structurii
 
 ### Modul 2: Neural Network
-- [ ] Arhitectură RN definită și documentată în cod (docstring detaliat) - versiunea inițială 
+- [X] Arhitectură RN definită și documentată în cod (docstring detaliat) - versiunea inițială 
 - [ ] README în `src/neural_network/` cu detalii arhitectură curentă
 
 ### Modul 3: Web Service / UI

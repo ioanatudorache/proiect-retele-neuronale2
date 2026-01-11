@@ -201,7 +201,7 @@ def main():
 
     # configurare
     INPUT_DIR = "../../data/raw/input"  # director cu cele 4 imagini originale
-    OUTPUT_DIR = "../../data/processed/output"  # director unde se salvează rezultatele
+    OUTPUT_DIR = "../../data/generated/output"  # director unde se salvează rezultatele
     TARGET_COUNT = 1000  # cate imagini vrem pentru fiecare constelație
 
     # creează augmenter

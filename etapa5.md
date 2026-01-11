@@ -167,15 +167,15 @@ Includeți **TOATE** cerințele Nivel 1 + următoarele:
 
 Antrenarea și inferența trebuie să respecte fluxul din State Machine-ul vostru definit în Etapa 4.
 
-**Exemplu pentru monitorizare vibrații lagăr:**
+**Starile State Machine-ului:**
 
-| **Stare din Etapa 4** | **Implementare în Etapa 5** |
-|-----------------------|-----------------------------|
-| `ACQUIRE_DATA` | Citire batch date din `data/train/` pentru antrenare |
-| `PREPROCESS` | Aplicare scaler salvat din `config/preprocessing_params.pkl` |
-| `RN_INFERENCE` | Forward pass cu model ANTRENAT (nu weights random) |
-| `THRESHOLD_CHECK` | Clasificare Normal/Uzură pe baza output RN antrenat |
-| `ALERT` | Trigger în UI bazat pe predicție modelului real |
+| **Stare din Etapa 4** | **Implementare în Etapa 5**                                                                                      |
+|-----------------------|------------------------------------------------------------------------------------------------------------------|
+| `ACQUIRE_DATA` | Incarcarea imaginii stelare prin interfata UI sau citirea path-ului din setul de test                            |
+| `PREPROCESS` | Redimensionarea imaginii la 128x128, conversia în array NumPy și normalizarea pixelilor în intervalul [0, 1]     |
+| `RN_INFERENCE` | Executarea functiei model.predict() folosind modelul antrenat trained_model.h5                                   |
+| `THRESHOLD_CHECK` | Verificarea dacă probabilitatea maximă (ex: 0.85 pentru Andromeda) depășește pragul de încredere setat (ex: 0.5) |
+| `ALERT` | Afișarea numelui constelației identificate și a procentului de siguranță în interfața Streamlit/UI               |
 
 **În `src/app/main.py` (UI actualizat):**
 

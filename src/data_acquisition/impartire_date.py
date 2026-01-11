@@ -2,10 +2,10 @@ import os
 import shutil
 import random
 
-source_root = "/Users/ioanatudorache/Documents/GitHub/proiect-retele-neuronale/data/processed/output"
-train_root = "/Users/ioanatudorache/Documents/GitHub/proiect-retele-neuronale/data/processed/train"
-test_root = "/Users/ioanatudorache/Documents/GitHub/proiect-retele-neuronale/data/processed/test"
-val_root = "/Users/ioanatudorache/Documents/GitHub/proiect-retele-neuronale/data/processed/validation"
+source_root = "/Users/ioanatudorache/Documents/GitHub/proiect-retele-neuronale/data/generated/output"
+train_root = "/Users/ioanatudorache/Documents/GitHub/proiect-retele-neuronale/data/generated/train"
+test_root = "/Users/ioanatudorache/Documents/GitHub/proiect-retele-neuronale/data/generated/test"
+val_root = "/Users/ioanatudorache/Documents/GitHub/proiect-retele-neuronale/data/generated/validation"
 
 for cls in os.listdir(source_root):
     class_path = os.path.join(source_root, cls)
